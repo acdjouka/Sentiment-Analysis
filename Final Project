@@ -1,0 +1,65 @@
+from __future__ import division
+import nltk, re, pprint
+from nltk.corpus import movie_reviews
+print len(movie_reviews.raw())
+print len(movie_reviews.words())
+print len(movie_reviews.sents())
+print int(len(movie_reviews.raw())/len(movie_reviews.words()))
+print int(len(movie_reviews.words())/len(movie_reviews.sents()))
+print nltk.FreqDist(movie_reviews.words())
+print len(movie_reviews.words())/len(set(movie_reviews.words()))
+all_words = nltk.FreqDist(w.lower() for w in movie_reviews.words())
+word_features = all_words.keys()[:3000]
+def document_features(document):
+	document_words = set(document)
+	features = {}
+	for word in word_features:
+		features['contains(%s)' % word] = (word in document_words)
+	return features
+import random
+documents = [(list(movie_reviews.words(fileid)), category)
+	     for category in movie_reviews.categories()
+	     for fileid in movie_reviews.fileids(category)]
+random.shuffle(documents)
+featuresets = [(document_features(d), c) for (d,c) in documents]
+train_set, test_set = featuresets[200:], featuresets[:200]
+classifier = nltk.NaiveBayesClassifier.train(train_set)
+print nltk.classify.accuracy(classifier, test_set)
+classifier.show_most_informative_features(7)
+import collections
+import nltk.metrics
+from nltk.classify import NaiveBayesClassifier
+from nltk.corpus import movie_reviews
+
+def word_feats(words):
+    return dict([(word, True) for word in words])
+ 
+negids = movie_reviews.fileids('neg')
+posids = movie_reviews.fileids('pos')
+ 
+negfeats = [(word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
+posfeats = [(word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
+ 
+negcutoff = int(len(negfeats)*4/5)
+poscutoff = int(len(posfeats)*4/5)
+ 
+trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
+testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
+print 'train on %d instances, test on %d instances' % (len(trainfeats), len(testfeats))
+ 
+classifier = NaiveBayesClassifier.train(trainfeats)
+refsets = collections.defaultdict(set)
+testsets = collections.defaultdict(set)
+ 
+for i, (feats, label) in enumerate(testfeats):
+    refsets[label].add(i)
+    observed = classifier.classify(feats)
+    testsets[observed].add(i)
+
+ 
+print 'pos precision:', nltk.metrics.precision(refsets['pos'], testsets['pos'])
+print 'pos recall:', nltk.metrics.recall(refsets['pos'], testsets['pos'])
+print 'pos F-measure:', nltk.metrics.f_measure(refsets['pos'], testsets['pos'])
+print 'neg precision:', nltk.metrics.precision(refsets['neg'], testsets['neg'])
+print 'neg recall:', nltk.metrics.recall(refsets['neg'], testsets['neg'])
+print 'neg F-measure:', nltk.metrics.f_measure(refsets['neg'], testsets['neg'])
